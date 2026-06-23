@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMP Private Chat</title>
+    <!-- Include PubNub SDK for Real-time Chat Functionality -->
+    <script src="https://pubnub.com"></script>
+    <!-- Link to your external whitelist file for easy editing -->
+    <script src="whitelist.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background: #1e1e2e; color: #cdd6f4; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        
+        /* Login Screen styling */
+        #login-screen { background: #313244; padding: 30px; border-radius: 10px; width: 350px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #login-screen h2 { margin-bottom: 20px; }
+        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: none; font-size: 16px; }
+        input { background: #45475a; color: #fff; }
+        button { background: #a6e3a1; color: #11111b; font-weight: bold; cursor: pointer; }
+        button:hover { background: #94e2d5; }
+        #error-msg { color: #f38ba8; font-size: 14px; margin-top: 5px; display: none; }
+
+        /* Main Chat Screen styling */
+        #chat-screen { display: none; width: 100vw; height: 100vh; flex-direction: column; }
+        header { background: #11111b; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #313244; }
+        header select { width: auto; margin: 0; background: #313244; color: #fff; padding: 8px 15px; cursor: pointer; }
+        
+        #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #181825; }
+        .msg { background: #313244; padding: 10px 15px; border-radius: 8px; max-width: 70%; width: fit-content; word-break: break-word; }
+        .msg .meta { font-size: 11px; color: #cba6f7; margin-bottom: 4px; font-weight: bold; }
+        .msg.me { align-self: flex-end; background: #45475a; }
+        .msg.me .meta { color: #89b4fa; }
+
+        footer { padding: 15px; background: #11111b; display: flex; gap: 10px; }
+        footer input { margin: 0; flex: 1; }
+        footer button { width: auto; margin: 0; padding: 0 25px; }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen">
+        <h2>SMP Chat Access</h2>
+        <input type="text" id="mc-username" placeholder="Minecraft Username" required>
+        <input type="text" id="first-name" placeholder="First Name" required>
+        <button onclick="attemptLogin()">Enter Chat</button>
+        <div id="error-msg">Access Denied: Username not whitelisted.</div>
+    </div>
+
+    <!-- CHAT SCREEN -->
+    <div id="chat-screen">
+        <header>
+            <h2 id="chat-title">Stable SMP</h2>
+            <!-- Server Dropdown Selector -->
+            <select id="smp-selector" onchange="switchChannel()">
+                <option value="stable-smp">Stable SMP</option>
+                <option value="pi-smp">Pi SMP</option>
+            </select>
+        </header>
+        <div id="chat-box"></div>
+        <footer>
+            <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Send</button>
+        </footer>
+    </div>
+
+    <script>
+        let pubnub;
+        let currentChannel = "stable-smp";
+        let userIdentity = "";
+
+        function attemptLogin() {
+            // .toLowerCase() forces the input to lowercase so caps don't matter
+            const mcInput = document.getElementById("mc-username").value.trim().toLowerCase();
+            const nameInput = document.getElementById("first-name").value.trim();
+
+            if (!mcInput || !nameInput) return;
+
+            // Verifies against the list imported from whitelist.js
+            if (typeof ALLOWED_PLAYERS !== 'undefined' && ALLOWED_PLAYERS.includes(mcInput)) {
+                userIdentity = `${nameInput} (${mcInput})`;
+                document.getElementById("login-screen").style.display = "none";
+                document.getElementById("chat-screen").style.display = "flex";
+                initPubNub();
+            } else {
+                document.getElementById("error-msg").style.display = "block";
+            }
+        }
+
+        function initPubNub() {
+            pubnub = new PubNub({
+                publishKey: "pub-c-a7a2fa71-c006-4448-a0e2-63ab7a94f57c",
+                subscribeKey: "sub-c-5cb16b5a-ced8-4903-8d91-ec15e0242bc0",
+                userId: userIdentity
+            });
+
+            pubnub.addListener({
+                message: function(event) {
+                    if (event.channel === currentChannel) {
+                        displayMessage(event.message.sender, event.message.text);
+                    }
+                }
+            });
+
+            subscribeToChannel();
+        }
+
+        function subscribeToChannel() {
+            pubnub.subscribe({ channels: [currentChannel] });
+            document.getElementById("chat-box").innerHTML = ""; 
+            
+            pubnub.fetchMessages({
+                channels: [currentChannel],
+                count: 50
+            }, function(status, response) {
+                if (response && response.channels[currentChannel]) {
+                    response.channels[currentChannel].forEach(msg => {
+                        displayMessage(msg.message.sender, msg.message.text);
+                    });
+                }
+            });
+        }
+
+        function switchChannel() {
+            const selector = document.getElementById("smp-selector");
+            pubnub.unsubscribe({ channels: [currentChannel] });
+            
+            currentChannel = selector.value;
+            document.getElementById("chat-title").innerText = selector.options[selector.selectedIndex].text;
+            
+            subscribeToChannel();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("msg-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            pubnub.publish({
+                channel: currentChannel,
+                message: { sender: userIdentity, text: text }
+            });
+            input.value = "";
+        }
+
+        function displayMessage(sender, text) {
+            const chatBox = document.getElementById("chat-box");
+            const msgDiv = document.createElement("div");
+            msgDiv.classList.add("msg");
+            
+            if (sender === userIdentity) {
+                msgDiv.classList.add("me");
+            }
+
+            msgDiv.innerHTML = `<div class="meta">${sender}</div><div>${text}</div>`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; 
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === "Enter") sendMessage();
+        }
+    </script>
+</body>
+</html>
