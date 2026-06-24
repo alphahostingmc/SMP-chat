@@ -6,74 +6,8 @@
     <title>SMP Private Chat</title>
     <!-- Include PubNub SDK for Real-time Chat Functionality -->
     <script src="https://pubnub.com"></script>
-    <!-- Link to your external whitelist file for easy editing -->
-    <script src="whitelist.js"></script>
-    <style>
-        /* CSS Theme Variables */
-        :root {
-            --bg-body: #1e1e2e;
-            --bg-panel: #313244;
-            --bg-input: #45475a;
-            --bg-chat: #181825;
-            --bg-header: #11111b;
-            --text-main: #cdd6f4;
-            --text-meta: #cba6f7;
-            --text-meta-me: #89b4fa;
-            --msg-bg: #313244;
-            --msg-bg-me: #45475a;
-            --btn-bg: #a6e3a1;
-            --btn-text: #11111b;
-            --btn-hover: #94e2d5;
-            --border-color: #313244;
-        }
-
-        [data-theme="light"] {
-            --bg-body: #e6e9ef;
-            --bg-panel: #dce0e8;
-            --bg-input: #ccd0da;
-            --bg-chat: #eff1f5;
-            --bg-header: #bcc0cc;
-            --text-main: #4c4f69;
-            --text-meta: #8839ef;
-            --text-meta-me: #1e66f5;
-            --msg-bg: #bcc0cc;
-            --msg-bg-me: #acb0be;
-            --btn-bg: #40a02b;
-            --btn-text: #ffffff;
-            --btn-hover: #179287;
-            --border-color: #bcc0cc;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; transition: background 0.3s, color 0.3s; }
-        body { background: var(--bg-body); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; }
-        
-        /* Login Screen styling */
-        #login-screen { background: var(--bg-panel); padding: 30px; border-radius: 10px; width: 350px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        #login-screen h2 { margin-bottom: 20px; }
-        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: none; font-size: 16px; }
-        input { background: var(--bg-input); color: var(--text-main); }
-        input::placeholder { color: var(--text-main); opacity: 0.6; }
-        button { background: var(--btn-bg); color: var(--btn-text); font-weight: bold; cursor: pointer; }
-        button:hover { background: var(--btn-hover); }
-        #error-msg { color: #f38ba8; font-size: 14px; margin-top: 5px; display: none; }
-
-        /* Main Chat Screen styling */
-        #chat-screen { display: none; width: 100vw; height: 100vh; flex-direction: column; }
-        header { background: var(--bg-header); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); }
-        .header-controls { display: flex; gap: 10px; align-items: center; }
-        header select { width: auto; margin: 0; background: var(--bg-panel); color: var(--text-main); padding: 8px 15px; cursor: pointer; }
-        .theme-toggle { width: auto; margin: 0; padding: 8px 12px; background: var(--bg-panel); color: var(--text-main); border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; }
-        
-        #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: var(--bg-chat); }
-        .msg { background: var(--msg-bg); color: var(--text-main); padding: 10px 15px; border-radius: 8px; max-width: 70%; width: fit-content; word-break: break-word; }
-        .msg .meta { font-size: 11px; color: var(--text-meta); margin-bottom: 4px; font-weight: bold; }
-        .msg.me { align-self: flex-end; background: var(--msg-bg-me); }
-        .msg.me .meta { color: var(--text-meta-me); }
-
-        footer { padding: 15px; background: var(--bg-header); display: flex; gap: 10px; }
-        footer input { margin: 0; flex: 1; }
-        footer button { width: auto; margin: 0; padding: 0 25px; }
-    </style>
+    <!-- Link to your external stylesheet -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -91,9 +25,7 @@
         <header>
             <h2 id="chat-title">Stable SMP</h2>
             <div class="header-controls">
-                <!-- Theme Toggle Button -->
                 <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">☀️ Light Mode</button>
-                <!-- Server Dropdown Selector -->
                 <select id="smp-selector" onchange="switchChannel()">
                     <option value="stable-smp">Stable SMP</option>
                     <option value="pi-smp">Pi SMP</option>
@@ -107,114 +39,7 @@
         </footer>
     </div>
 
-    <script>
-        let pubnub;
-        let currentChannel = "stable-smp";
-        let userIdentity = "";
-
-        // Function to toggle between Dark and Light mode
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute("data-theme");
-            const btn = document.getElementById("theme-btn");
-            
-            if (currentTheme === "light") {
-                document.documentElement.removeAttribute("data-theme");
-                btn.innerText = "☀️ Light Mode";
-            } else {
-                document.documentElement.setAttribute("data-theme", "light");
-                btn.innerText = "🌙 Dark Mode";
-            }
-        }
-
-        function attemptLogin() {
-            const mcInput = document.getElementById("mc-username").value.trim().toLowerCase();
-            const nameInput = document.getElementById("first-name").value.trim();
-
-            if (!mcInput || !nameInput) return;
-
-            if (typeof ALLOWED_PLAYERS !== 'undefined' && ALLOWED_PLAYERS.includes(mcInput)) {
-                userIdentity = `${nameInput} (${mcInput})`;
-                document.getElementById("login-screen").style.display = "none";
-                document.getElementById("chat-screen").style.display = "flex";
-                initPubNub();
-            } else {
-                document.getElementById("error-msg").style.display = "block";
-            }
-        }
-
-        function initPubNub() {
-            pubnub = new PubNub({
-                publishKey: "pub-c-a7a2fa71-c006-4448-a0e2-63ab7a94f57c",
-                subscribeKey: "sub-c-5cb16b5a-ced8-4903-8d91-ec15e0242bc0",
-                userId: userIdentity
-            });
-
-            pubnub.addListener({
-                message: function(event) {
-                    if (event.channel === currentChannel) {
-                        displayMessage(event.message.sender, event.message.text);
-                    }
-                }
-            });
-
-            subscribeToChannel();
-        }
-
-        function subscribeToChannel() {
-            pubnub.subscribe({ channels: [currentChannel] });
-            document.getElementById("chat-box").innerHTML = ""; 
-            
-            pubnub.fetchMessages({
-                channels: [currentChannel],
-                count: 50
-            }, function(status, response) {
-                if (response && response.channels[currentChannel]) {
-                    response.channels[currentChannel].forEach(msg => {
-                        displayMessage(msg.message.sender, msg.message.text);
-                    });
-                }
-            });
-        }
-
-        function switchChannel() {
-            const selector = document.getElementById("smp-selector");
-            pubnub.unsubscribe({ channels: [currentChannel] });
-            
-            currentChannel = selector.value;
-            document.getElementById("chat-title").innerText = selector.options[selector.selectedIndex].text;
-            
-            subscribeToChannel();
-        }
-
-        function sendMessage() {
-            const input = document.getElementById("msg-input");
-            const text = input.value.trim();
-            if (!text) return;
-
-            pubnub.publish({
-                channel: currentChannel,
-                message: { sender: userIdentity, text: text }
-            });
-            input.value = "";
-        }
-
-        function displayMessage(sender, text) {
-            const chatBox = document.getElementById("chat-box");
-            const msgDiv = document.createElement("div");
-            msgDiv.classList.add("msg");
-            
-            if (sender === userIdentity) {
-                msgDiv.classList.add("me");
-            }
-
-            msgDiv.innerHTML = `<div class="meta">${sender}</div><div>${text}</div>`;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight; 
-        }
-
-        function handleKeyPress(e) {
-            if (e.key === "Enter") sendMessage();
-        }
-    </script>
+    <!-- Link to your external JavaScript file -->
+    <script src="script.js"></script>
 </body>
 </html>
