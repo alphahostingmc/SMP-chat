@@ -51,40 +51,49 @@ function initPubNub() {
     subscribeToChannel();
 }
 
-function subscribeToChannel() {
+// Fixed using async/await pattern required by the newer PubNub SDKs
+async function subscribeToChannel() {
     pubnub.subscribe({ channels: [currentChannel] });
     document.getElementById("chat-box").innerHTML = ""; 
     
-    pubnub.fetchMessages({
-        channels: [currentChannel],
-        count: 50
-    }, function(status, response) {
-        if (response && response.channels[currentChannel]) {
+    try {
+        const response = await pubnub.fetchMessages({
+            channels: [currentChannel],
+            count: 30
+        });
+        
+        if (response && response.channels && response.channels[currentChannel]) {
             response.channels[currentChannel].forEach(msg => {
                 displayMessage(msg.message.sender, msg.message.text);
             });
         }
-    });
+    } catch (error) {
+        console.log("History fetch skipped or empty:", error);
+    }
 }
 
-function switchChannel() {
+async function switchChannel() {
     const selector = document.getElementById("smp-selector");
     pubnub.unsubscribe({ channels: [currentChannel] });
     currentChannel = selector.value;
     document.getElementById("chat-title").innerText = selector.options[selector.selectedIndex].text;
-    subscribeToChannel();
+    await subscribeToChannel();
 }
 
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById("msg-input");
     const text = input.value.trim();
     if (!text) return;
 
-    pubnub.publish({
-        channel: currentChannel,
-        message: { sender: userIdentity, text: text }
-    });
-    input.value = "";
+    try {
+        await pubnub.publish({
+            channel: currentChannel,
+            message: { sender: userIdentity, text: text }
+        });
+        input.value = "";
+    } catch (error) {
+        console.error("Failed to send message:", error);
+    }
 }
 
 function displayMessage(sender, text) {
