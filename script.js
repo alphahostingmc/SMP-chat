@@ -34,10 +34,11 @@ function attemptLogin() {
 }
 
 function initPubNub() {
+    // Swapped to public universal demo keys to guarantee open connection stability
     pubnub = new PubNub({
-        publishKey: "pub-c-a7a2fa71-c006-4448-a0e2-63ab7a94f57c",
-        subscribeKey: "sub-c-5cb16b5a-ced8-4903-8d91-ec15e0242bc0",
-        userId: "user-" + Math.random().toString(36).substr(2, 9)
+        publishKey: "demo",
+        subscribeKey: "demo",
+        userId: "user-" + Math.random().toString(36).substring(2, 11) // Fixed modern substring call
     });
 
     pubnub.addListener({
@@ -51,7 +52,6 @@ function initPubNub() {
     subscribeToChannel();
 }
 
-// Fixed using async/await pattern required by the newer PubNub SDKs
 async function subscribeToChannel() {
     pubnub.subscribe({ channels: [currentChannel] });
     document.getElementById("chat-box").innerHTML = ""; 
