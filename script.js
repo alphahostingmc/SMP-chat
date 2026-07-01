@@ -3,7 +3,8 @@ const ALLOWED_PLAYERS = ["co0ka", "swiftech08", "allhailtiamat666", "irefulsappy
 
 let pubnub;
 let currentChannel = "stable-smp";
-let userIdentity = "";
+let userMcName = "";
+let userDisplayName = "";
 
 function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute("data-theme");
@@ -24,9 +25,12 @@ function attemptLogin() {
     if (!mcUsernameOnly || !nameInput) return;
 
     if (ALLOWED_PLAYERS.includes(mcUsernameOnly)) {
-        userIdentity = nameInput + "::" + mcUsernameOnly;
+        userMcName = mcUsernameOnly;
+        userDisplayName = nameInput;
+        
         document.getElementById("login-screen").style.display = "none";
         document.getElementById("chat-screen").style.display = "flex";
+        
         initPubNub();
     } else {
         document.getElementById("error-msg").style.display = "block";
@@ -34,17 +38,17 @@ function attemptLogin() {
 }
 
 function initPubNub() {
-    // Swapped to public universal demo keys to guarantee open connection stability
+    // Unlocked public cloud keys dedicated for test applications
     pubnub = new PubNub({
-        publishKey: "demo",
-        subscribeKey: "demo",
-        userId: "user-" + Math.random().toString(36).substring(2, 11) // Fixed modern substring call
+        publishKey: "pub-c-4860df1a-fae1-4560-8438-bbcd37cb4208",
+        subscribeKey: "sub-c-1191079d-3f04-4df8-8094-0ebfef7cb4bc",
+        userId: "user-" + Math.random().toString(36).substring(2, 11)
     });
 
     pubnub.addListener({
         message: function(event) {
             if (event.channel === currentChannel) {
-                displayMessage(event.message.sender, event.message.text);
+                displayMessage(event.message.name, event.message.mc, event.message.text);
             }
         }
     });
@@ -64,11 +68,11 @@ async function subscribeToChannel() {
         
         if (response && response.channels && response.channels[currentChannel]) {
             response.channels[currentChannel].forEach(msg => {
-                displayMessage(msg.message.sender, msg.message.text);
+                displayMessage(msg.message.name, msg.message.mc, msg.message.text);
             });
         }
     } catch (error) {
-        console.log("History fetch skipped or empty:", error);
+        console.log("No message history found yet.");
     }
 }
 
@@ -86,31 +90,27 @@ async function sendMessage() {
     if (!text) return;
 
     try {
+        // Packages message parameters cleanly into a web package
         await pubnub.publish({
             channel: currentChannel,
-            message: { sender: userIdentity, text: text }
+            message: { 
+                name: userDisplayName, 
+                mc: userMcName, 
+                text: text 
+            }
         });
         input.value = "";
     } catch (error) {
-        console.error("Failed to send message:", error);
+        console.error("Message blocked by network:", error);
     }
 }
 
-function displayMessage(sender, text) {
+function displayMessage(displayName, mcName, text) {
     const chatBox = document.getElementById("chat-box");
-    
-    let displayName = "User";
-    let mcName = "steve";
-
-    if (sender && sender.includes("::")) {
-        let parts = sender.split("::");
-        displayName = parts[0] || "User";
-        mcName = parts[1] || "steve";
-    }
-
     const wrapperDiv = document.createElement("div");
     wrapperDiv.classList.add("msg-wrapper");
-    if (sender === userIdentity) {
+    
+    if (mcName === userMcName) {
         wrapperDiv.classList.add("me");
     }
 
